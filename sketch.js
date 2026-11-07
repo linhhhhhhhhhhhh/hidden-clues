@@ -1,10 +1,15 @@
-// Hidden Clues — Step 4: join the room
+// Hidden Clues — Step 5: roles + partner UI
 // p5.js 2.3.2 + p5-phone 1.16.1
 
 let camX = 0; // camera: world coords of the view's top-left
 let camY = 0;
 let pressX = 0; // pointer position at press, for drag deltas
 let pressY = 0;
+
+// --- roles (Step 5) ---
+const ROLE_KEY = 'hidden-clues-role'; // sessionStorage: per tab/phone, survives reload
+let myRole = 0; // 0 = not pinned yet, else 1 or 2
+const livePeers = new Set(); // other phones we know to be in the room
 
 async function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -42,6 +47,17 @@ function draw() {
   camY = constrain(camY, 0, worldH - height);
 
   background(255); // white background
+
+  // --- pin my role the moment the room is up ---
+  // First phone in (shareIsHost) = player 1; then pin in sessionStorage so a
+  // reload or backgrounding can never swap the role. sessionStorage, not
+  // localStorage: two windows on one laptop would share one localStorage.
+  if (myRole === 0 && window.shareConnected && !window.shareError) {
+    const pinned = sessionStorage.getItem(ROLE_KEY);
+    myRole = pinned ? Number(pinned) : window.shareIsHost ? 1 : 2;
+    sessionStorage.setItem(ROLE_KEY, String(myRole));
+    shareSetMe('role', myRole); // partners read this from guests (quiet mode)
+  }
 
   // --- world (translated by the camera) ---
   push();
@@ -104,6 +120,8 @@ function draw() {
   line(x + side, y + side, x + side, y + side - bracket);
 
   drawConnectionStatus();
+  drawBadge();
+  drawInvite();
 }
 
 // --- connection gate (plan: gate on the room actually being connected) ---
@@ -128,6 +146,67 @@ function drawConnectionStatus() {
   fill(0);
   text(msg, width / 2, height - 64);
   pop();
+}
+
+// --- ①/② badge: circled number, top-left corner ---
+function drawBadge() {
+  if (myRole === 0) return;
+  push();
+  const bx = 46;
+  const by = 46;
+  const d = 44;
+  fill(255);
+  stroke(0);
+  strokeWeight(3);
+  circle(bx, by, d);
+  fill(0);
+  noStroke();
+  textAlign(CENTER, CENTER);
+  textSize(24);
+  textStyle(BOLD);
+  text(String(myRole), bx, by + 1);
+  pop();
+}
+
+// --- invite line: room + join link until a partner is in ---
+function drawInvite() {
+  const alone = !(window.shareConnected && !window.shareError && myRole > 0 && livePeers.size > 0);
+  if (!alone) return;
+
+  push();
+  textAlign(CENTER, CENTER);
+  textStyle(NORMAL);
+  noStroke();
+  const room = window.shareRoom || 'a1-iris';
+  fill(0);
+  textSize(15);
+  text('Waiting for a partner — room ' + room, width / 2, height - 84);
+  const url = typeof getShareJoinUrl === 'function' ? getShareJoinUrl() : '';
+  let s = 12;
+  textSize(s);
+  while (textWidth(url) > width - 28 && s > 7) {
+    s--;
+    textSize(s);
+  }
+  fill(0, 130);
+  text(url, width / 2, height - 58);
+  pop();
+}
+
+// --- partner presence ---
+// guests (quiet mode) are snapshots that go stale, so: seed at welcome from
+// phones that report a role (i.e. running this build), then trust live
+// join/leave events — those are never suppressed by quiet.
+function shareReady() {
+  for (const g of guestsWith('role')) livePeers.add(g.id);
+}
+
+function shareJoined(id) {
+  livePeers.add(id);
+}
+
+function shareLeft(id) {
+  livePeers.delete(id);
 }
 
 // --- pointer input: p5.js 2's unified callbacks ---
