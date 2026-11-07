@@ -11,6 +11,16 @@ const ROLE_KEY = 'hidden-clues-role'; // sessionStorage: per tab/phone, survives
 let myRole = 0; // 0 = not pinned yet, else 1 or 2
 const livePeers = new Set(); // other phones we know to be in the room
 
+// --- world layout (Step 7) ---
+let symbols = null; // eight placeholder positions, normalized 0..1 within the world
+let symbolsSeed = null; // the seed they were built from
+const PAIR_COLORS = [
+  [230, 57, 70], // pair A
+  [69, 123, 157], // pair B
+  [42, 157, 143], // pair C
+  [244, 162, 97] // pair D
+];
+
 async function setup() {
   createCanvas(windowWidth, windowHeight);
   lockGestures();
@@ -72,6 +82,13 @@ function draw() {
     shareSet('seed', Math.floor(Math.random() * 2147483647));
   }
 
+  // --- build the world once the seed is here (Step 7) ---
+  const seedVal = window.shared ? window.shared.seed : null;
+  if (seedVal != null && symbolsSeed !== seedVal) {
+    symbols = buildWorld(seedVal);
+    symbolsSeed = seedVal;
+  }
+
   // --- world (translated by the camera) ---
   push();
   translate(-camX, -camY);
@@ -94,6 +111,32 @@ function draw() {
   stroke(0, 0, 0, 90);
   strokeWeight(3);
   rect(0, 0, worldW, worldH);
+
+  // --- placeholder symbols (Step 7): coloured shape + letter, ~96 px ---
+  // circle = TEAR side, square = ACRE side; letter = pair A..D (shared colour)
+  if (symbols) {
+    const d = 96;
+    textAlign(CENTER, CENTER);
+    textSize(34);
+    textStyle(BOLD);
+    for (const s of symbols) {
+      const sx = s.nx * worldW;
+      const sy = s.ny * worldH;
+      const col = PAIR_COLORS[s.pair - 1];
+      fill(col[0], col[1], col[2]);
+      stroke(0);
+      strokeWeight(3);
+      if (s.side === 'TEAR') {
+        circle(sx, sy, d);
+      } else {
+        rect(sx - d / 2, sy - d / 2, d, d);
+      }
+      fill(0);
+      noStroke();
+      text('ABCD'[s.pair - 1], sx, sy + 2);
+    }
+    textStyle(NORMAL);
+  }
 
   pop();
 
@@ -152,6 +195,55 @@ function drawWaitingForWorld() {
   textSize(15);
   text('Waiting for world…', width / 2, height - 112);
   pop();
+}
+
+// --- world building (Step 7) ---
+
+// deterministic PRNG: same seed → same sequence on every phone
+function mulberry32(a) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Eight positions: four pairs × two sides. Pair k = TEAR-k + ACRE-k.
+// Positions are stored as world fractions so every screen size gets the
+// same layout. Minimum spacing keeps symbols from stacking up.
+function buildWorld(seed) {
+  const rand = mulberry32(seed);
+  const pts = [];
+  const minD = 0.16; // minimum spacing in world fractions
+  let guard = 0;
+  while (pts.length < 8 && guard++ < 5000) {
+    const p = { x: 0.1 + rand() * 0.8, y: 0.1 + rand() * 0.8 };
+    if (pts.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= minD)) pts.push(p);
+  }
+  // deterministic padding if rejection sampling ever gives up (never expected)
+  const fallback = [
+    [0.15, 0.15],
+    [0.85, 0.15],
+    [0.15, 0.85],
+    [0.85, 0.85],
+    [0.5, 0.5],
+    [0.5, 0.15],
+    [0.15, 0.5],
+    [0.85, 0.5]
+  ];
+  let f = 0;
+  while (pts.length < 8) {
+    const g = fallback[f++];
+    pts.push({ x: g[0], y: g[1] });
+  }
+  return pts.map((p, i) => ({
+    nx: p.x,
+    ny: p.y,
+    pair: Math.floor(i / 2) + 1, // 1..4
+    side: i % 2 === 0 ? 'TEAR' : 'ACRE'
+  }));
 }
 
 // --- connection gate (plan: gate on the room actually being connected) ---
