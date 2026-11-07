@@ -21,6 +21,28 @@ const PAIR_COLORS = [
   [244, 162, 97] // pair D
 ];
 
+// --- visibility ladder (Step 8) ---
+// own unfound 12%, partner unfound 25%, own found 100%, partner found 50%
+function symbolAlpha(s) {
+  const st = window.shared;
+  if (!st) return 0.25;
+  const mine = (s.side === 'TEAR') === (myRole !== 2); // TEAR belongs to player 1
+  const found = mine
+    ? (myRole === 2 ? st.p2Found : st.p1Found)[s.pair - 1]
+    : (myRole === 2 ? st.p1Found : st.p2Found)[s.pair - 1];
+  if (mine) return found ? 1 : 0.12;
+  return found ? 0.5 : 0.25;
+}
+
+// only your own unfound symbol can be claimed (Step 10 uses this)
+function isClaimable(s) {
+  const st = window.shared;
+  if (!st || myRole === 0) return false;
+  const mine = (s.side === 'TEAR') === (myRole !== 2);
+  const found = (myRole === 2 ? st.p2Found : st.p1Found)[s.pair - 1];
+  return mine && !found;
+}
+
 async function setup() {
   createCanvas(windowWidth, windowHeight);
   lockGestures();
@@ -112,8 +134,10 @@ function draw() {
   strokeWeight(3);
   rect(0, 0, worldW, worldH);
 
-  // --- placeholder symbols (Step 7): coloured shape + letter, ~96 px ---
+  // --- placeholder symbols (Step 8: ladder via tint + fill alpha) ---
   // circle = TEAR side, square = ACRE side; letter = pair A..D (shared colour)
+  // tint() is the opacity vehicle for images (Step 12); p5 2.3.2 ignores tint
+  // for shapes, so shapes carry the same alpha in fill()/stroke().
   if (symbols) {
     const d = 96;
     textAlign(CENTER, CENTER);
@@ -123,17 +147,20 @@ function draw() {
       const sx = s.nx * worldW;
       const sy = s.ny * worldH;
       const col = PAIR_COLORS[s.pair - 1];
-      fill(col[0], col[1], col[2]);
-      stroke(0);
+      const a = Math.round(symbolAlpha(s) * 255);
+      tint(255, a);
+      fill(col[0], col[1], col[2], a);
+      stroke(0, a);
       strokeWeight(3);
       if (s.side === 'TEAR') {
         circle(sx, sy, d);
       } else {
         rect(sx - d / 2, sy - d / 2, d, d);
       }
-      fill(0);
+      fill(0, a);
       noStroke();
       text('ABCD'[s.pair - 1], sx, sy + 2);
+      noTint();
     }
     textStyle(NORMAL);
   }
