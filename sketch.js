@@ -7,7 +7,7 @@ async function setup() {
 }
 
 function draw() {
-  background(20); // dark background, matches the page
+  background(255); // white background
 
   // Fixed scanner window: square, 60% of screen width, centred
   const side = width * 0.6;
@@ -16,19 +16,19 @@ function draw() {
 
   // Thin border
   noFill();
-  stroke(255, 255, 255, 50);
+  stroke(0, 0, 0, 50);
   strokeWeight(1);
   rect(x, y, side, side);
 
   // Faint crosshair at the centre
-  stroke(255, 40);
+  stroke(0, 40);
   strokeWeight(1);
   const arm = 18;
   line(width / 2 - arm, height / 2, width / 2 + arm, height / 2);
   line(width / 2, height / 2 - arm, width / 2, height / 2 + arm);
 
   // Four corner brackets
-  stroke(255, 160);
+  stroke(0, 160);
   strokeWeight(3);
   const bracket = side * 0.12;
   // top-left
