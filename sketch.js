@@ -59,6 +59,19 @@ function draw() {
     shareSetMe('role', myRole); // partners read this from guests (quiet mode)
   }
 
+  // --- one seed (Step 6): only the host writes it, and only if missing ---
+  // If both phones rolled one, the two worlds would diverge. Writing from
+  // draw() keeps retrying until the room echoes it back, so it self-heals.
+  if (
+    window.shareConnected &&
+    !window.shareError &&
+    window.shared &&
+    window.shareIsHost &&
+    window.shared.seed == null
+  ) {
+    shareSet('seed', Math.floor(Math.random() * 2147483647));
+  }
+
   // --- world (translated by the camera) ---
   push();
   translate(-camX, -camY);
@@ -122,6 +135,23 @@ function draw() {
   drawConnectionStatus();
   drawBadge();
   drawInvite();
+  drawWaitingForWorld();
+}
+
+// --- waiting for the seed (Step 6) ---
+function drawWaitingForWorld() {
+  const waiting =
+    window.shareConnected && !window.shareError && window.shared && window.shared.seed == null;
+  if (!waiting) return;
+
+  push();
+  textAlign(CENTER, CENTER);
+  textStyle(NORMAL);
+  noStroke();
+  fill(0);
+  textSize(15);
+  text('Waiting for world…', width / 2, height - 112);
+  pop();
 }
 
 // --- connection gate (plan: gate on the room actually being connected) ---
