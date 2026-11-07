@@ -1,4 +1,4 @@
-// Hidden Clues — Step 2: panning a 3×3-screen world
+// Hidden Clues — Step 4: join the room
 // p5.js 2.3.2 + p5-phone 1.16.1
 
 let camX = 0; // camera: world coords of the view's top-left
@@ -9,6 +9,25 @@ let pressY = 0;
 async function setup() {
   createCanvas(windowWidth, windowHeight);
   lockGestures();
+
+  // --- Share config (plan: exact values) ---
+  shareSetup({
+    host: 'https://p5-phone-share.npuckett.workers.dev', // the class server
+    room: 'a1-iris',                                     // your room
+    app: 'hidden-clues',
+    shared: {
+      seed: null,
+      p1Found: [false, false, false, false],
+      p2Found: [false, false, false, false]
+    },
+    me: { name: 'emma' },
+    quiet: true // the sketch reads only `shared`
+  });
+  // One combined tap: joins the room and keeps the screen on.
+  enablePermissionsTap(['share'], 'Tap to join');
+  // After shareSetup() the QR carries the room join link (desktop only).
+  showDesktopQr();
+
   // start at the world centre (the world is 3× the screen)
   camX = width;
   camY = height;
@@ -83,6 +102,32 @@ function draw() {
   // bottom-right
   line(x + side, y + side, x + side - bracket, y + side);
   line(x + side, y + side, x + side, y + side - bracket);
+
+  drawConnectionStatus();
+}
+
+// --- connection gate (plan: gate on the room actually being connected) ---
+function drawConnectionStatus() {
+  if (window.shareConnected && !window.shareError) return; // in the room: quiet
+
+  push();
+  textAlign(CENTER, CENTER);
+  textSize(15);
+  const msg = window.shareError
+    ? 'Share error: ' + window.shareError
+    : typeof shareStatusText === 'function'
+      ? shareStatusText()
+      : 'Not connected';
+  const w = textWidth(msg) + 32;
+  fill(255);
+  stroke(0, 160);
+  strokeWeight(1);
+  rectMode(CENTER);
+  rect(width / 2, height - 64, w, 34, 8);
+  noStroke();
+  fill(0);
+  text(msg, width / 2, height - 64);
+  pop();
 }
 
 // --- pointer input: p5.js 2's unified callbacks ---
