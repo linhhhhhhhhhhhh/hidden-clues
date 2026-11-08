@@ -203,7 +203,7 @@ function draw() {
   line(x + side, y + side, x + side, y + side - bracket);
 
   drawConnectionStatus();
-  drawBadge();
+  drawTopBar();
   drawInvite();
   drawWaitingForWorld();
 }
@@ -297,23 +297,83 @@ function drawConnectionStatus() {
   pop();
 }
 
-// --- ①/② badge: circled number, top-left corner ---
-function drawBadge() {
+// --- top bar (Step 9): badge ①/② + four pair-slots ---
+// Slot k = pair k+1 (concept reference): empty, a faint inset when your
+// partner found their half, solid when you found yours. The inset is drawn
+// on top of the solid (as a white wash) so both states stay visible.
+function drawTopBar() {
   if (myRole === 0) return;
+  const st = window.shared;
+  const barH = 76;
+
   push();
-  const bx = 46;
-  const by = 46;
-  const d = 44;
+
+  // white strip with a black rule under it
+  noStroke();
+  fill(255);
+  rect(0, 0, width, barH);
+  stroke(0);
+  strokeWeight(3);
+  line(0, barH, width, barH);
+
+  // badge, moved in from the corner
+  const bx = 44;
+  const by = barH / 2;
+  const bd = 44;
   fill(255);
   stroke(0);
   strokeWeight(3);
-  circle(bx, by, d);
+  circle(bx, by, bd);
   fill(0);
   noStroke();
   textAlign(CENTER, CENTER);
   textSize(24);
   textStyle(BOLD);
   text(String(myRole), bx, by + 1);
+
+  // four pair-slots, centred in the space right of the badge
+  const slotW = 46;
+  const slotH = 30;
+  const gap = 14;
+  const rowW = 4 * slotW + 3 * gap;
+  const spaceL = bx + bd / 2 + 16;
+  const spaceR = width - 16;
+  const startX = spaceL + Math.max(0, (spaceR - spaceL - rowW) / 2);
+  const sy = by - slotH / 2;
+  const ownArr = st ? (myRole === 2 ? st.p2Found : st.p1Found) : null;
+  const partnerArr = st ? (myRole === 2 ? st.p1Found : st.p2Found) : null;
+
+  for (let k = 0; k < 4; k++) {
+    const sx = startX + k * (slotW + gap);
+    const col = PAIR_COLORS[k];
+    const own = !!(ownArr && ownArr[k]);
+    const partner = !!(partnerArr && partnerArr[k]);
+
+    // empty slot
+    fill(255);
+    stroke(0);
+    strokeWeight(3);
+    rect(sx, sy, slotW, slotH);
+
+    // solid: you found your half
+    if (own) {
+      fill(col[0], col[1], col[2]);
+      rect(sx, sy, slotW, slotH);
+    }
+
+    // faint inset: your partner found theirs
+    if (partner) {
+      noStroke();
+      if (own) {
+        fill(255, 255, 255, 160); // wash over the solid
+      } else {
+        fill(col[0], col[1], col[2], 70); // faint tint on white
+      }
+      rect(sx + slotW * 0.2, sy + slotH * 0.25, slotW * 0.6, slotH * 0.5);
+    }
+  }
+
+  textStyle(NORMAL);
   pop();
 }
 
