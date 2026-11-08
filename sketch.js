@@ -35,16 +35,17 @@ const PAIR_COLORS = [
 ];
 
 // --- visibility ladder (Step 8) ---
-// own unfound 10%, partner unfound 5%, own found 100%, partner found 50%
+// own unfound 10%, partner unfound 0% (invisible — players found the ghost
+// clues confusing), own found 100%, partner found 50%
 function symbolAlpha(s) {
   const st = window.shared;
-  if (!st) return 0.05;
+  if (!st) return 0;
   const mine = (s.side === 'TEAR') === (myRole !== 2); // TEAR belongs to player 1
   const found = mine
     ? (myRole === 2 ? st.p2Found : st.p1Found)[s.pair - 1]
     : (myRole === 2 ? st.p1Found : st.p2Found)[s.pair - 1];
   if (mine) return found ? 1 : 0.1;
-  return found ? 0.5 : 0.05;
+  return found ? 0.5 : 0; // partner unfound: invisible
 }
 
 // only your own unfound symbol can be claimed (Step 10 uses this)
