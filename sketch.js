@@ -250,6 +250,45 @@ function draw() {
   drawTopBar();
   drawInvite();
   drawWaitingForWorld();
+  drawEndBar();
+}
+
+// --- end state (Step 11): all eight halves found on both phones ---
+function allFound() {
+  const st = window.shared;
+  if (!st) return false;
+  const done = arr => [0, 1, 2, 3].every(i => arr[i]);
+  return done(st.p1Found) && done(st.p2Found);
+}
+
+function drawEndBar() {
+  if (!allFound()) return; // both players' four halves must be in
+
+  push();
+  const barH = 64;
+  const y = height - barH;
+  noStroke();
+  fill(255);
+  rect(0, y, width, barH);
+  stroke(0);
+  strokeWeight(3);
+  line(0, y, width, y);
+
+  // exact text from the plan
+  textAlign(CENTER, CENTER);
+  textStyle(BOLD);
+  let s = 17;
+  textSize(s);
+  const msg = 'All Clues Found. Good Luck Decoding';
+  while (textWidth(msg) > width - 24 && s > 9) {
+    s--;
+    textSize(s);
+  }
+  noStroke();
+  fill(0);
+  text(msg, width / 2, y + barH / 2);
+  textStyle(NORMAL);
+  pop();
 }
 
 // --- waiting for the seed (Step 6) ---
