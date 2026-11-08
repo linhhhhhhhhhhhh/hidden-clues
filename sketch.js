@@ -5,6 +5,8 @@ let camX = 0; // camera: world coords of the view's top-left
 let camY = 0;
 let pressX = 0; // pointer position at press, for drag deltas
 let pressY = 0;
+let downX = 0; // original press position — never touched by drag deltas,
+let downY = 0; // so mouseReleased can tell a tap from a drag (Step 10)
 
 // --- roles (Step 5) ---
 const ROLE_KEY = 'hidden-clues-role'; // sessionStorage: per tab/phone, survives reload
@@ -41,6 +43,48 @@ function isClaimable(s) {
   const mine = (s.side === 'TEAR') === (myRole !== 2);
   const found = (myRole === 2 ? st.p2Found : st.p1Found)[s.pair - 1];
   return mine && !found;
+}
+
+// --- claiming (Step 10) ---
+// A claim needs a tap within 35 px of an own unfound symbol whose centre is
+// inside the scanner window; overlapping candidates resolve to the one
+// nearest the window centre. On success only my own found array is written —
+// the partner's key is never touched.
+function tryClaim(tapX, tapY) {
+  const st = window.shared;
+  if (!st || myRole === 0 || !symbols) return false;
+
+  const worldW = width * 3;
+  const worldH = height * 3;
+  const side = width * 0.6;
+  const winX = width / 2 - side / 2;
+  const winY = height / 2 - side / 2;
+
+  let best = null;
+  let bestToCentre = Infinity;
+  for (const s of symbols) {
+    if (!isClaimable(s)) continue; // own unfound only — partner symbols never claim
+    const sx = s.nx * worldW - camX;
+    const sy = s.ny * worldH - camY;
+    // the symbol's centre must sit inside the scanner window
+    if (sx < winX || sx > winX + side || sy < winY || sy > winY + side) continue;
+    // 35 px tap tolerance
+    if (Math.hypot(tapX - sx, tapY - sy) > 35) continue;
+    // ties resolve to the symbol nearest the window centre
+    const toCentre = Math.hypot(sx - width / 2, sy - height / 2);
+    if (toCentre < bestToCentre) {
+      bestToCentre = toCentre;
+      best = s;
+    }
+  }
+  if (!best) return false;
+
+  // write only my own found array
+  const key = myRole === 2 ? 'p2Found' : 'p1Found';
+  const arr = [0, 1, 2, 3].map(i => !!st[key][i]);
+  arr[best.pair - 1] = true;
+  shareSet(key, arr);
+  return true;
 }
 
 async function setup() {
@@ -423,6 +467,8 @@ function shareLeft(id) {
 function mousePressed() {
   pressX = mouseX;
   pressY = mouseY;
+  downX = mouseX;
+  downY = mouseY;
   return false;
 }
 
@@ -435,6 +481,10 @@ function mouseDragged() {
 }
 
 function mouseReleased() {
+  // tap vs drag (Step 10): compare press with release — under 10 px is a
+  // tap, more is a drag, and a drag must never claim.
+  const moved = Math.hypot(mouseX - downX, mouseY - downY);
+  if (moved < 10) tryClaim(mouseX, mouseY);
   return false;
 }
 
