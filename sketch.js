@@ -16,6 +16,17 @@ const livePeers = new Set(); // other phones we know to be in the room
 // --- world layout (Step 7) ---
 let symbols = null; // eight placeholder positions, normalized 0..1 within the world
 let symbolsSeed = null; // the seed they were built from
+
+// --- real clue art (Step 12) ---
+// Drop-in path (case-sensitive!): assets/TEAR-1.PNG … assets/TEAR-4.PNG for
+// player 1's halves, assets/ACRE-1.PNG … assets/ACRE-4.PNG for player 2's.
+// Each file loads on its own; if one is missing or renamed, that slot keeps
+// drawing its shape+letter placeholder instead of taking the sketch down.
+const clueArt = {
+  TEAR: [null, null, null, null],
+  ACRE: [null, null, null, null]
+};
+
 const PAIR_COLORS = [
   [230, 57, 70], // pair A
   [69, 123, 157], // pair B
@@ -109,6 +120,23 @@ async function setup() {
   // After shareSetup() the QR carries the room join link (desktop only).
   showDesktopQr();
 
+  // --- real images (Step 12): exact, case-sensitive names (see clueArt) ---
+  // Loaded AFTER the join overlay exists, so a slow image never delays the
+  // tap. All eight load concurrently: a missing or renamed file only leaves
+  // that entry null, and its symbol keeps drawing the shape+letter
+  // placeholder instead of taking the sketch down.
+  await Promise.all(
+    ['TEAR', 'ACRE'].flatMap(side =>
+      [1, 2, 3, 4].map(async k => {
+        try {
+          clueArt[side][k - 1] = await loadImage(`assets/${side}-${k}.PNG`);
+        } catch (e) {
+          console.warn(`assets/${side}-${k}.PNG missing — slot ${k} keeps its placeholder`);
+        }
+      })
+    )
+  );
+
   // start at the world centre (the world is 3× the screen)
   camX = width;
   camY = height;
@@ -192,6 +220,19 @@ function draw() {
       const sy = s.ny * worldH;
       const col = PAIR_COLORS[s.pair - 1];
       const a = Math.round(symbolAlpha(s) * 255);
+      const art = clueArt[s.side][s.pair - 1];
+
+      if (art) {
+        // real art (Step 12): for images tint() drives the opacity ladder
+        tint(255, a);
+        image(art, sx - d / 2, sy - d / 2, d, d);
+        noTint();
+        continue;
+      }
+
+      // shape+letter placeholder (Steps 7-8) — also the per-file fallback.
+      // tint() is the opacity vehicle for images; p5 2.3.2 ignores tint for
+      // shapes, so shapes carry the same alpha in fill()/stroke().
       tint(255, a);
       fill(col[0], col[1], col[2], a);
       stroke(0, a);
