@@ -163,6 +163,7 @@ function draw() {
     sessionStorage.setItem(ROLE_KEY, String(myRole));
     shareSetMe('role', myRole); // partners read this from guests (quiet mode)
   }
+  resolveRoleConflict();
 
   // --- one seed (Step 6): only the host writes it, and only if missing ---
   // If both phones rolled one, the two worlds would diverge. Writing from
@@ -527,7 +528,55 @@ function drawInvite() {
   pop();
 }
 
-// --- partner presence ---
+// --- role conflict resolver (Step 5 hardening) ---
+// The pin above is write-once, but a race at join time can leave BOTH phones
+// on the same role: the server briefly reporting host to two simultaneous
+// joiners (both pin ①), or a stale sessionStorage value from a previous
+// session (both pin ②).
+//
+// Detection can't use guests/me: the server relays `shared` patches in both
+// directions but does NOT relay other clients' `me` patches, so a partner's
+// `role` in `guests` is only their join-time snapshot (the later joiner sees
+// it; the earlier joiner never sees updates). Instead every phone PUBLISHES
+// its role under its own shared key — `role_<clientId>` — and reads the
+// partner's from theirs; both directions sync through `shared`.
+//
+// Resolution is symmetric — "my role equals my partner's published role" is
+// true on BOTH phones at once — and so is the fix, a tie-break over the same
+// two client ids:
+//   both ① → the higher clientId steps down to ②
+//   both ② → the lower clientId steps up to ①
+// Exactly one phone acts in either case, so roles always converge to opposite
+// values, while sequential joins keep first-in = ① (plan Step 5): the
+// tie-break only ever runs when a same-role conflict is actually visible.
+function resolveRoleConflict() {
+  if (!window.shareConnected || window.shareError || !window.shareClientId || !window.shared) return;
+  if (myRole !== 1 && myRole !== 2) return; // pin not taken yet
+
+  // publish my role under my own key — idempotent: only writes on drift
+  // (right after the pin, after a step-down, or if the server resets shared)
+  const myKey = 'role_' + window.shareClientId;
+  if (window.shared[myKey] !== myRole) shareSet(myKey, myRole);
+
+  // partner: id from live presence (join/leave events), role from THEIR
+  // shared key — `shared` is the only channel that syncs in both directions
+  let partnerId = livePeers.values().next().value;
+  if (!partnerId) partnerId = (window.guests || []).find(g => g && g.id)?.id;
+  if (!partnerId || partnerId === window.shareClientId) return;
+  const partnerRole = window.shared['role_' + partnerId];
+  if (partnerRole !== 1 && partnerRole !== 2) return; // not published yet
+  if (partnerRole !== myRole) return; // opposite roles — the normal case
+
+  // same role on both phones: symmetric tie-break, exactly one side acts
+  const iAmLower = window.shareClientId < partnerId;
+  const stay = myRole === 1 ? iAmLower : !iAmLower; // ① survives on lower id, ② on higher
+  if (stay) return;
+  const to = myRole === 1 ? 2 : 1;
+  myRole = to;
+  sessionStorage.setItem(ROLE_KEY, String(to));
+  shareSetMe('role', to); // still useful: guests seed livePeers from it
+  shareSet(myKey, to);    // partner reads this → conflict gone next frame
+}
 // guests (quiet mode) are snapshots that go stale, so: seed at welcome from
 // phones that report a role (i.e. running this build), then trust live
 // join/leave events — those are never suppressed by quiet.
