@@ -61,7 +61,11 @@ function isClaimable(s) {
 // A claim needs a tap within 35 px of an own unfound symbol whose centre is
 // inside the scanner window; overlapping candidates resolve to the one
 // nearest the window centre. On success only my own found array is written —
-// the partner's key is never touched.
+// the partner's key is never touched. A successful claim also arms the
+// ~400 ms ring flash (Step 14 polish).
+let claimFlash = null; // { nx, ny, pair, t0 } in world fractions + millis()
+const CLAIM_FLASH_MS = 400;
+
 function tryClaim(tapX, tapY) {
   const st = window.shared;
   if (!st || myRole === 0 || !symbols) return false;
@@ -96,6 +100,10 @@ function tryClaim(tapX, tapY) {
   const arr = [0, 1, 2, 3].map(i => !!st[key][i]);
   arr[best.pair - 1] = true;
   shareSet(key, arr);
+
+  // arm the claim flash (Step 14) — world coords, so panning mid-flash
+  // keeps the ring on the symbol
+  claimFlash = { nx: best.nx, ny: best.ny, pair: best.pair, t0: millis() };
   return true;
 }
 
@@ -250,6 +258,29 @@ function draw() {
       noTint();
     }
     textStyle(NORMAL);
+
+    // --- claim flash (Step 14 polish): ~400 ms ring/flash on the symbol
+    // just claimed — pair-coloured ring expanding off the symbol with a
+    // black outer ring (the sketch's black-border style), both fading out.
+    // Drawn in world space so a pan mid-flash keeps it on the symbol.
+    if (claimFlash) {
+      const t = (millis() - claimFlash.t0) / CLAIM_FLASH_MS;
+      if (t >= 1) {
+        claimFlash = null;
+      } else {
+        const fx = claimFlash.nx * worldW;
+        const fy = claimFlash.ny * worldH;
+        const col = PAIR_COLORS[claimFlash.pair - 1];
+        const ease = 1 - (1 - t) * (1 - t); // ease-out expansion
+        noFill();
+        stroke(col[0], col[1], col[2], Math.round(255 * (1 - t)));
+        strokeWeight(6 - 4 * t);
+        circle(fx, fy, d + ease * d * 1.4);
+        stroke(0, Math.round(200 * (1 - t)));
+        strokeWeight(2);
+        circle(fx, fy, d + ease * d * 2.0);
+      }
+    }
   }
 
   pop();
