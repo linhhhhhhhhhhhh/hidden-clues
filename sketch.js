@@ -27,11 +27,13 @@ const clueArt = {
   ACRE: [null, null, null, null]
 };
 
+// Pair colours match the art baked into the PNGs (sampled from the assets,
+// both sides of a pair share one colour): red, yellow, green, blue.
 const PAIR_COLORS = [
-  [230, 57, 70], // pair A
-  [69, 123, 157], // pair B
-  [42, 157, 143], // pair C
-  [244, 162, 97] // pair D
+  [214, 0, 0],   // pair 1 — red
+  [211, 186, 0], // pair 2 — yellow
+  [0, 199, 0],   // pair 3 — green
+  [6, 0, 203]    // pair 4 — blue
 ];
 
 // --- visibility ladder (Step 8) ---
