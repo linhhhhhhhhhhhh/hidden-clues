@@ -8,6 +8,8 @@ let pressY = 0;
 let downX = 0; // original press position — never touched by drag deltas,
 let downY = 0; // so mouseReleased can tell a tap from a drag (Step 10)
 
+const SYMBOL_D = 96; // symbol size in px: art box, placeholder, tap tolerance base
+
 // --- roles (Step 5) ---
 const ROLE_KEY = 'hidden-clues-role'; // sessionStorage: per tab/phone, survives reload
 let myRole = 0; // 0 = not pinned yet, else 1 or 2
@@ -60,11 +62,11 @@ function isClaimable(s) {
 }
 
 // --- claiming (Step 10) ---
-// A claim needs a tap within 35 px of an own unfound symbol whose centre is
-// inside the scanner window; overlapping candidates resolve to the one
-// nearest the window centre. On success only my own found array is written —
-// the partner's key is never touched. A successful claim also arms the
-// ~400 ms ring flash (Step 14 polish).
+// A claim needs a tap within 35 px — or the symbol's half-size, whichever is
+// larger — of an own unfound symbol whose centre is inside the scanner window;
+// overlapping candidates resolve to the one nearest the window centre. On
+// success only my own found array is written — the partner's key is never
+// touched. A successful claim also arms the ~400 ms ring flash (Step 14).
 let claimFlash = null; // { nx, ny, pair, t0 } in world fractions + millis()
 const CLAIM_FLASH_MS = 400;
 
@@ -86,8 +88,9 @@ function tryClaim(tapX, tapY) {
     const sy = s.ny * worldH - camY;
     // the symbol's centre must sit inside the scanner window
     if (sx < winX || sx > winX + side || sy < winY || sy > winY + side) continue;
-    // 35 px tap tolerance
-    if (Math.hypot(tapX - sx, tapY - sy) > 35) continue;
+    // tap tolerance: 35 px, or the symbol's half-size so a fat-finger tap
+    // anywhere on the visible clue still claims (phone pass finding)
+    if (Math.hypot(tapX - sx, tapY - sy) > Math.max(35, SYMBOL_D / 2)) continue;
     // ties resolve to the symbol nearest the window centre
     const toCentre = Math.hypot(sx - width / 2, sy - height / 2);
     if (toCentre < bestToCentre) {
@@ -223,7 +226,7 @@ function draw() {
   // tint() is the opacity vehicle for images (Step 12); p5 2.3.2 ignores tint
   // for shapes, so shapes carry the same alpha in fill()/stroke().
   if (symbols) {
-    const d = 96;
+    const d = SYMBOL_D;
     textAlign(CENTER, CENTER);
     textSize(34);
     textStyle(BOLD);
@@ -644,10 +647,11 @@ function mouseDragged() {
 }
 
 function mouseReleased() {
-  // tap vs drag (Step 10): compare press with release — under 10 px is a
-  // tap, more is a drag, and a drag must never claim.
+  // tap vs drag (Step 10): compare press with release — under 20 px is a
+  // tap (finger jitter on a phone easily exceeds 10 px), more is a drag,
+  // and a drag must never claim.
   const moved = Math.hypot(mouseX - downX, mouseY - downY);
-  if (moved < 10) tryClaim(mouseX, mouseY);
+  if (moved < 20) tryClaim(mouseX, mouseY);
   return false;
 }
 
